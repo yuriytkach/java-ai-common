@@ -20,7 +20,22 @@ appropriate framework file, for example `.agent/shared/quarkus/AGENTS.md` or
 Consumer projects add this repository as a git submodule at `.agent/shared`. The submodule can
 use sparse checkout so each project pulls only the shared directories it needs.
 
-For an agent-assisted setup, use the guide in `docs/SETUP-CONSUMER-PROJECT.md`.
+### Using a coding agent for setup
+
+For agent-assisted setup, use the dedicated guide in `docs/SETUP-CONSUMER-PROJECT.md`.
+When using a hosted repository UI, copy the URL to that document and give it to the coding agent
+together with the git URL of this repository.
+
+Example prompt:
+
+```text
+Please follow the setup guide at 'https://github.com/yuriytkach/java-ai-common/blob/main/docs/SETUP-CONSUMER-PROJECT.md'
+Connect java-ai-common to this repository using this submodule URL: https://github.com/yuriytkach/java-ai-common.git.
+Detect whether this project is Quarkus or Spring Boot, verify the existing submodule setup or add it
+if missing, configure the correct sparse checkout, create or fix the root AGENTS.md and CLAUDE.md
+symlinks, and add/update the AI Agent Setup section in README.md.
+Ask me only if the framework is ambiguous or if AGENTS.md or CLAUDE.md already exists as a regular file.
+```
 
 ### Required sparse checkout paths
 
