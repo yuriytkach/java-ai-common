@@ -182,3 +182,12 @@ code — including code that does not yet contain any log statement:
 Exact exception-logging format, MDC key conventions, and MDC propagation across async boundaries
 live in `LOGGING.md`. Read that file before adding or changing any log statement, MDC key, or
 async dispatch that needs the caller's logging context.
+
+## Post Construct Rule
+Every @PostConstruct method on a CDI bean MUST log entry and exit at INFO level, including the bean's class name. This helps diagnose startup ordering issues. Example:
+@PostConstruct
+void init() {
+  log.info("PaymentService initializing");
+  // ... initialization work ...
+  log.info("PaymentService initialized");
+}
