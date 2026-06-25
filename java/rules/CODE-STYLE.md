@@ -113,6 +113,55 @@ public long countCoRegistrations(final YearMonth month) { ... }
   names. Sonar S6213 flags `record` specifically; IDE refactors silently break when a method
   shadows a keyword. Pick a verb that describes the action — `capture`, `register`, `apply`.
 
+## Comments and Javadoc
+
+Code should be self-explanatory through naming and structure first. Add a comment or Javadoc only
+when it carries information the code cannot: a non-obvious *why*, a contract or edge case a caller
+must know, or a domain rule that explains an otherwise-surprising decision.
+
+- **Do NOT write Javadoc that restates the method.** A method named `resolveEligibleDiscounts`
+  does not need `/** Resolve eligible discounts. */` — that is noise the reader scans past.
+- **Do NOT narrate the implementation.** If the body is readable, a paragraph re-describing what
+  each line does adds maintenance cost — it silently drifts from the code — without adding
+  understanding.
+- **DO capture non-obvious rationale — concisely, and only when the code can't show it.** An
+  external constraint (a vendor's batch-size cap), a non-local assumption (an upstream feed is
+  unordered), or a choice that looks wrong until you know the reason belongs in a one-line `//`
+  comment at that line. If a reader could answer "why" just by reading the method, add nothing.
+- **DO write fuller Javadoc when it earns its place:** genuinely complex algorithms, public / SPI
+  APIs whose contract is not obvious from the signature, non-trivial nullability / threading /
+  ordering contracts, or surprising edge-case behaviour.
+
+```java
+// OVER-DOCUMENTED — six lines of Javadoc, most of it restating logic the body already shows
+/**
+ * Fetch every active discount and keep only those the order's customer may actually use: discounts
+ * open to all customers, or discounts scoped to the customer's own tier. This mirrors what the
+ * checkout validator would accept, so we do not attempt — and meter as skipped — discounts that a
+ * different tier's rule would always reject.
+ */
+private List<Discount> resolveEligibleDiscounts(final Customer customer, final CustomerTier tier) { ... }
+
+// RIGHT — no comment. The name says what it returns; the filter shows which discounts qualify.
+private List<Discount> resolveEligibleDiscounts(final Customer customer, final CustomerTier tier) {
+  return discountService.getActiveDiscounts(tier).stream()
+    .filter(discount -> discount.getTier().equals(ALL_CUSTOMERS)
+      || discount.getTier().equals(tier))
+    .toList();
+}
+```
+
+A one-line comment earns its place only when it states a fact the code cannot — typically an
+external constraint or a non-local assumption the reader has no way to see:
+
+```java
+// Vendor API rejects batches larger than 500 ids; chunk to stay under the cap.
+final var batches = StreamEx.of(ids).distinct().chunk(500);
+```
+
+Before writing a comment, ask: *does this say something the code doesn't?* If no, delete it. If
+yes, say it in the fewest words that carry the fact.
+
 ## Configuration Properties
 
 - **Duration fields**: Always use `java.time.Duration` as the field type for any property that

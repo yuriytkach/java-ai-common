@@ -8,6 +8,37 @@ For the **policy** of when to log and at which level, see the `## Logging` secti
 to add logs in the first place. This file covers the **mechanics**: exact format, MDC conventions,
 async propagation.
 
+## Message structure: static text first, parameters labelled at the end
+
+Write the human-readable part of the message as a complete, uninterrupted phrase, then append the
+parameters as labelled `key={}` tokens. Do NOT splice a `{}` placeholder into the middle of the
+sentence, and do NOT emit a bare `{}` with no key.
+
+```java
+// WRONG — values spliced mid-sentence, so the static text is fragmented and not searchable as a
+// whole; bare {} gives the reader no clue what the value is
+log.info("No active subscription for customer {}; skipping renewal for {} orders",
+  customerId, orderCount);
+
+// CORRECT — full sentence first, then labelled key={} tokens
+log.info("No active subscription for customer; skipping renewal. CustomerId={}, OrderCount={}",
+  customerId, orderCount);
+```
+
+Why:
+- **Full-text search.** A reader who sees one occurrence can copy the static sentence verbatim and
+  grep every other occurrence. A `{}` in the middle splits the static text into fragments, so no
+  single contiguous substring matches across all log lines.
+- **Self-describing values.** `customerId=12345` tells the reader what the value is; a bare `12345`
+  floating in prose does not. Labelled `key={}` tokens also match the structured / logfmt style log
+  search operators expect (`orderCount=` as a field filter).
+- **Consistency.** This is the same shape the exception format below already uses (`orderId={}`
+  before the trailing `: {}`).
+
+Keep the leading phrase short — it is the searchable identity of the log line, not a paragraph. A
+single trailing parameter that already reads as `… orderId={}` is fine; the rule only forbids
+placeholders *before* the end of the human-readable text.
+
 ## Exception logging format
 
 Always include `ex.getMessage()` as an explicit placeholder in the message string, followed by the

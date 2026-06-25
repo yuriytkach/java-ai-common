@@ -11,6 +11,9 @@ Mandatory reading before writing or modifying any test class.
 
 ## Unit vs. Integration Tests
 
+- Unit tests MUST NOT bootstrap the framework application context. Reserve framework-bootstrapping
+  test annotations for integration tests in the framework-specific IT source set. See the
+  framework-specific `TESTING.md` for which annotations apply.
 - Unit tests mirror the package structure of the class under test.
 - Integration tests are named with the `IT` suffix.
 - When changing DB code, SQL queries, REST client code, Kafka code, OpenSearch code, Redis code,
@@ -395,19 +398,20 @@ closed set) gains a new value — the stub stops matching what the production co
 the test fails or, worse, silently returns `null` from an unmatched stub and breaks elsewhere.
 
 ```java
-// WRONG — ALL_METRICS = EnumSet.allOf(Metric.class) is 5 today, 6 tomorrow.
-// Adding ANY_ACTIVITY_USERS to Metric silently makes the controller send a 5-element EnumSet
-// while the stub still expects 6 — mock returns null, JSON body has nulls, assertion fails at
-// runtime (not compile time, because EnumSet sizes are runtime data).
-private static final Set<Metric> ALL_METRICS = EnumSet.allOf(Metric.class);
+// WRONG — ALL_CHANNELS = EnumSet.allOf(Channel.class) is 5 today, 6 tomorrow.
+// Adding IN_APP to Channel silently changes what this matcher accepts: the stub now expects a
+// 6-element EnumSet while the code under test still builds the 5 channels it actually supports —
+// mock returns null, response body has nulls, assertion fails at runtime (not compile time,
+// because EnumSet sizes are runtime data).
+private static final Set<Channel> ALL_CHANNELS = EnumSet.allOf(Channel.class);
 
-when(service.getSplit(any(), any(), any(), any(), anyBoolean(), any(), ALL_METRICS))
+when(service.dispatch(any(), any(), any(), any(), anyBoolean(), any(), ALL_CHANNELS))
   .thenReturn(response);
 
 // CORRECT — pin the EnumSet to the values the test cares about, by name.
-when(service.getSplit(any(), any(), any(), any(), anyBoolean(), any(),
-    EnumSet.of(Metric.USERS, Metric.CLIPS, Metric.REDEMPTIONS,
-      Metric.UNIQUE_CLIPPERS, Metric.UNIQUE_REDEEMERS)))
+when(service.dispatch(any(), any(), any(), any(), anyBoolean(), any(),
+    EnumSet.of(Channel.EMAIL, Channel.SMS, Channel.PUSH,
+      Channel.WEBHOOK, Channel.SLACK)))
   .thenReturn(response);
 ```
 

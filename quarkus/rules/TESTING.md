@@ -4,6 +4,7 @@ Mandatory reading before writing or modifying Quarkus test classes.
 
 ## Unit vs. Integration Tests
 
+- The framework-bootstrapping annotation in Quarkus is `@QuarkusTest`.
 - Do NOT use `@QuarkusTest` for unit tests.
 - Use `@QuarkusTest` only for integration tests in the `quarkusIntTest` source set.
 

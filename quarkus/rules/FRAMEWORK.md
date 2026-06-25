@@ -78,7 +78,7 @@ The failure is silent in tests that mock the repository or run on a single schem
 in environments where multi-tenancy is actually wired up — typically dev/staging/prod.
 
 Fix: annotate the entry-point method with `@ActivateRequestContext`. Even if the tenant value
-itself lives in a `ThreadLocal` (e.g. `AccountTypeContext.setAccountType(...)` set by an upstream
+itself lives in a `ThreadLocal` (e.g. `TenantContext.setTenant(...)` set by an upstream
 header reader), the resolver bean itself still needs an active request scope to be looked up.
 
 ```java

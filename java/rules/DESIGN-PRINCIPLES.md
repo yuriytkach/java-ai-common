@@ -101,11 +101,11 @@ property prefix — derive the new value from the existing rule mechanically. Do
 that "reads nicely" alongside some other identifier (e.g. matching the JSON field name) until you
 have first computed what the existing pattern would dictate and explicitly chosen to deviate.
 
-The mistake shape: 5 entries follow Pattern A (`USERS → users`, `UNIQUE_CLIPPERS → uniqueClippers`,
+The mistake shape: 5 entries follow Pattern A (`EMAIL → email`, `PUSH_TOKEN → pushToken`,
 i.e. enum-name → lowerCamelCase). When you add the 6th, you reach for a name that pairs nicely
-with the JSON field name (`anyActivityUserCount`) instead of the Pattern-A value
-(`anyActivityUsers`). The pattern break breaks any downstream consumer that derived its token
-from Pattern A, even though every individual file in the diff looks self-consistent.
+with the JSON field name (`inAppEnabled`) instead of the Pattern-A value (`inApp`). The pattern
+break breaks any downstream consumer that derived its token from Pattern A, even though every
+individual file in the diff looks self-consistent.
 
 Before adding a new entry to a series:
 

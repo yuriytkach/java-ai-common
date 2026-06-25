@@ -14,7 +14,7 @@ Format: `<type>: <Capitalized imperative subject>`
 - No trailing period.
 - One blank line between subject and body.
 
-Do NOT add a scope in parentheses (e.g. `feat(audience-activity): ...`).
+Do NOT add a scope in parentheses (e.g. `feat(payments): ...`).
 The team uses bare types only. Scopes that appear in some recent history are
 artefacts of unedited tooling output, not the convention.
 
@@ -61,11 +61,11 @@ Resolve the ticket id in this order:
 Examples:
 
 ```
-feat: Add anyActivityUserCount metric
+feat: Add inApp notification channel
 
-Add a sixth metric to the admin endpoint, sourced from user_last_activity.
-The monthly report needs both the legacy count and the new any-activity
-count as separate rows.
+Add a sixth channel to the dispatch endpoint, sourced from the user's
+in-app preferences. The notification settings page needs both the legacy
+channels and the new in-app option as separate toggles.
 
 PROJ-7373
 ```

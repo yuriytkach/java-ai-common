@@ -2,6 +2,26 @@
 
 Mandatory reading before running shared Gradle verification commands.
 
+## Verification Sequence
+
+When verifying a code change, run these in order. A change is not complete until all pass:
+
+1. Unit tests: `./gradlew test`
+2. Integration tests: `./gradlew <integration-test-task> -x test`
+3. Static analysis & style: `./gradlew check -x test -x <integration-test-task>`
+
+`<integration-test-task>` depends on the framework:
+
+| Framework   | Integration test task |
+|-------------|-----------------------|
+| Quarkus     | `quarkusIntTest`      |
+| Spring Boot | `integrationTest`     |
+
+When a task is delegated to a smaller/cheaper sub-agent, that sub-agent must only **run,
+extract, and summarize** failures (file path, line number, rule/test name, error message).
+The sub-agent must NOT attempt fixes — fixing requires full codebase context and belongs to
+the main agent.
+
 ## Command Execution
 
 - Always use `./gradlew`, never a globally installed `gradle` command.
@@ -25,7 +45,7 @@ Mandatory reading before running shared Gradle verification commands.
 
 ## Verification Expectations
 
-- Run the full verification sequence required by the framework-specific `AGENTS.md` before claiming a change is complete.
+- Run the full **Verification Sequence** (above) before claiming a change is complete.
 - If a task is delegated to a smaller/cheaper sub-agent, that sub-agent must only run, extract, and summarize.
   The main agent remains responsible for code changes.
 
@@ -47,8 +67,7 @@ For changes of this kind, the mandatory verification before commit is:
 
 - `./gradlew test` — the full unit suite, unscoped.
 - `./gradlew <integration-test-task>` — the full IT suite, unscoped. (Task name varies per
-  framework — `quarkusIntTest` for Quarkus services, `integrationTest` or `verify` for Spring Boot;
-  consult the project's `AGENTS.md`.)
+  framework — see the **Verification Sequence** table above.)
 - `./gradlew check -x test -x <integration-test-task>` — static analysis in isolation.
 
 Scoped reruns are for **reproducing** a specific failure, not for **verifying** a schema-level

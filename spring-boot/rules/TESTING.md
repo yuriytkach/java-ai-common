@@ -4,7 +4,8 @@ Mandatory reading before writing or modifying Spring Boot test classes.
 
 ## Unit vs. Integration Tests
 
-- Unit tests must NOT start the Spring application context.
+- The framework-bootstrapping annotation in Spring Boot is `@SpringBootTest`.
+- Unit tests MUST NOT use `@SpringBootTest` or any other context-loading annotation.
 - Use `@SpringBootTest` for full integration tests.
 - Prefer slice tests such as `@WebMvcTest` or `@DataJpaTest` when a full context is unnecessary.
 
