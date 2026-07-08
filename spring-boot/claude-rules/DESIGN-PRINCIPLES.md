@@ -1,1 +1,0 @@
-../../java/rules/DESIGN-PRINCIPLES.md

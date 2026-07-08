@@ -5,9 +5,8 @@ Use this document when a coding agent needs to connect `java-ai-common` to a con
 ## Goal
 
 Set up this repository as a git submodule at `.agent/shared`, configure sparse checkout for the
-consumer project's framework, create the root `AGENTS.md` and `CLAUDE.md` symlinks and the
-`.claude/rules/shared` symlink for Claude Code path-scoped rules, and update the consumer
-project's `README.md` with the shared AI agent setup instructions.
+consumer project's framework, create the root `AGENTS.md` and `CLAUDE.md` symlinks, and update the
+consumer project's `README.md` with the shared AI agent setup instructions.
 
 ## Required input
 
@@ -26,10 +25,8 @@ git@github.com:<your-org>/java-ai-common.git
    submodule checkout if it is already present.
 3. Configure or repair sparse checkout for the required shared directories.
 4. Create or update the root `AGENTS.md` and `CLAUDE.md` symlinks.
-5. Create or update the `.claude/rules/shared` symlink so Claude Code auto-loads the path-scoped
-   rules.
-6. Add the AI agent setup section to the consumer project's `README.md`.
-7. Verify the resulting setup and summarize what changed.
+5. Add the AI agent setup section to the consumer project's `README.md`.
+6. Verify the resulting setup and summarize what changed.
 
 ## Framework detection
 
@@ -111,21 +108,6 @@ Create the root `CLAUDE.md` symlink for a Spring Boot project:
 ln -s .agent/shared/spring-boot/AGENTS.md CLAUDE.md
 ```
 
-Create the `.claude/rules/shared` symlink so Claude Code auto-loads the path-scoped rules
-(`claude-rules/` carries the rule files' `paths:` frontmatter). For a Quarkus project:
-
-```bash
-mkdir -p .claude/rules
-ln -s ../../.agent/shared/quarkus/claude-rules .claude/rules/shared
-```
-
-For a Spring Boot project:
-
-```bash
-mkdir -p .claude/rules
-ln -s ../../.agent/shared/spring-boot/claude-rules .claude/rules/shared
-```
-
 ## Existing setup remediation
 
 If `.agent/shared` already exists, the agent must verify and repair the existing setup instead of
@@ -163,13 +145,7 @@ assuming it is correct.
    test "$(readlink CLAUDE.md)" = ".agent/shared/<FRAMEWORK>/AGENTS.md"
    ```
 
-6. Verify (or create) the `.claude/rules/shared` symlink:
-
-   ```bash
-   test "$(readlink .claude/rules/shared)" = "../../.agent/shared/<FRAMEWORK>/claude-rules"
-   ```
-
-7. If the required framework file is missing because the pinned submodule commit is too old, or if
+6. If the required framework file is missing because the pinned submodule commit is too old, or if
    the user explicitly wants the latest shared guidance, advance the submodule with:
 
    ```bash
@@ -186,9 +162,6 @@ assuming it is correct.
 - If either file exists as a symlink to the wrong framework, replace it with the correct symlink.
 - If either file exists as a regular file, do NOT overwrite it automatically. Ask the user whether to keep
   the project-specific file or replace it with a symlink.
-- `.claude/rules/shared` should point to `.agent/shared/<framework>/claude-rules`. Create it if
-  missing; if it points to the wrong framework, replace it. This is what lets Claude Code
-  auto-load the path-scoped rules.
 
 ## `README.md` update requirements
 
@@ -199,7 +172,6 @@ That section should include:
 - the fact that this repository is connected as a git submodule at `.agent/shared`
 - the sparse checkout paths required for the project's framework
 - the root `AGENTS.md` and `CLAUDE.md` symlink targets
-- the `.claude/rules/shared` symlink target for Claude Code path-scoped rules
 - instructions for `git pull --rebase --recurse-submodules`
 - instructions for `git submodule update --remote --recursive`
 - the recommended git aliases `pullr` and `sub-update`
@@ -213,8 +185,7 @@ After making the changes, verify:
 1. `.agent/shared` exists and is a git submodule
 2. sparse checkout is configured for the expected paths
 3. `AGENTS.md` and `CLAUDE.md` point to the correct framework file
-4. `.claude/rules/shared` points to the correct framework's `claude-rules` folder
-5. `README.md` contains the AI agent setup section
+4. `README.md` contains the AI agent setup section
 
 ## Expected summary
 
@@ -224,6 +195,5 @@ The agent should report:
 - whether the submodule was added or reused
 - which sparse checkout paths were configured
 - which `AGENTS.md` and `CLAUDE.md` targets were created or kept
-- whether the `.claude/rules/shared` symlink was created or kept
 - whether `README.md` was created or updated
 - any manual follow-up needed from the user

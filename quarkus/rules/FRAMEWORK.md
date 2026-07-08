@@ -1,8 +1,3 @@
----
-paths:
-  - "**/*.java"
----
-
 # Quarkus Framework Rules
 
 Mandatory reading before writing, editing, or refactoring Quarkus application code.

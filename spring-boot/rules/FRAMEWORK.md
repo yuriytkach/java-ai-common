@@ -1,8 +1,3 @@
----
-paths:
-  - "**/*.java"
----
-
 # Spring Boot Framework Rules
 
 Mandatory reading before writing, editing, or refactoring Spring Boot application code.

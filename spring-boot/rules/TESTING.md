@@ -1,11 +1,3 @@
----
-paths:
-  - "**/src/test/**"
-  - "**/src/integrationTest/**"
-  - "**/*Test.java"
-  - "**/*IT.java"
----
-
 # Spring Boot Testing Rules
 
 Mandatory reading before writing or modifying Spring Boot test classes.
