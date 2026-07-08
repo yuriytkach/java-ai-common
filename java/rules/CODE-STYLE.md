@@ -46,14 +46,12 @@ public List<Order> findOrders(final LocalDate date) {
 - Async: Use CompletableFuture as the preferred default for async composition when async work is justified.
   Do NOT introduce parallelism without a concrete need. ExecutorService and other lower-level primitives
   are valid when the use case requires explicit control.
-- Nullability: Mark nullable fields and parameters with `@Nullable` from the `javax.annotation`
-  package. `@Nullable` is a **contract claim**, not defensive padding. Before annotating a parameter
-  / field / record component `@Nullable`, check the call sites you can see. If they all pass
-  non-null values, the parameter is not nullable — declaring it so weakens the type signal callers
-  rely on, forces the method body to write dead defensive null-guards, and tells future maintainers
-  that null is a meaningful state when it isn't. Default to non-null. Mark `@Nullable` only when
-  null is a documented, meaningful state in the domain. For unbounded public APIs where callers
-  aren't all visible, still default to non-null and let the type signal carry the contract.
+- Nullability: use `@Nullable` from the `javax.annotation` package. It is a **contract claim**,
+  not defensive padding: mark it only when null is a documented, meaningful state in the domain.
+  Before annotating, check the visible call sites — if they all pass non-null values, the
+  parameter is not nullable, and declaring it so weakens the type signal and forces dead
+  null-guards. Default to non-null everywhere, including public APIs whose callers aren't all
+  visible.
 
 ```java
 // WRONG — all callers pass clock.now(), which is never null. The @Nullable + null-guard are dead.
@@ -117,19 +115,16 @@ public long countCoRegistrations(final YearMonth month) { ... }
 
 Code should be self-explanatory through naming and structure first. Add a comment or Javadoc only
 when it carries information the code cannot: a non-obvious *why*, a contract or edge case a caller
-must know, or a domain rule that explains an otherwise-surprising decision.
+must know, or a domain rule explaining an otherwise-surprising decision.
 
-- **Do NOT write Javadoc that restates the method.** A method named `resolveEligibleDiscounts`
-  does not need `/** Resolve eligible discounts. */` — that is noise the reader scans past.
-- **Do NOT narrate the implementation.** If the body is readable, a paragraph re-describing what
-  each line does adds maintenance cost — it silently drifts from the code — without adding
-  understanding.
-- **DO capture non-obvious rationale — concisely, and only when the code can't show it.** An
-  external constraint (a vendor's batch-size cap), a non-local assumption (an upstream feed is
-  unordered), or a choice that looks wrong until you know the reason belongs in a one-line `//`
-  comment at that line. If a reader could answer "why" just by reading the method, add nothing.
-- **DO write fuller Javadoc when it earns its place:** genuinely complex algorithms, public / SPI
-  APIs whose contract is not obvious from the signature, non-trivial nullability / threading /
+- **Do NOT write Javadoc that restates the method** (`/** Resolve eligible discounts. */` on
+  `resolveEligibleDiscounts`) and do NOT narrate a readable implementation — such text drifts
+  from the code without adding understanding.
+- **DO capture non-obvious rationale concisely**: an external constraint (a vendor's batch-size
+  cap), a non-local assumption (an upstream feed is unordered), or a choice that looks wrong
+  until you know the reason — as a one-line `//` comment at that line.
+- **DO write fuller Javadoc when it earns its place:** complex algorithms, public / SPI APIs
+  whose contract isn't obvious from the signature, non-trivial nullability / threading /
   ordering contracts, or surprising edge-case behaviour.
 
 ```java

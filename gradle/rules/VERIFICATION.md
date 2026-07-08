@@ -17,10 +17,47 @@ When verifying a code change, run these in order. A change is not complete until
 | Quarkus     | `quarkusIntTest`      |
 | Spring Boot | `integrationTest`     |
 
-When a task is delegated to a smaller/cheaper sub-agent, that sub-agent must only **run,
-extract, and summarize** failures (file path, line number, rule/test name, error message).
-The sub-agent must NOT attempt fixes — fixing requires full codebase context and belongs to
-the main agent.
+The order matters: style checks come LAST, because fixing failing tests routinely introduces
+new style violations. Re-run the style checks after every round of edits within a verification
+pass — do not batch a single style check at the very end of a long editing session.
+
+## Delegate or Run Inline
+
+The test-runner sub-agent exists to keep long build output out of the main agent's context. It
+must only **run, extract, and summarize** failures (file path, line number, rule/test name,
+error message) — it must NOT attempt fixes, because fixing requires full codebase context and
+belongs to the main agent. That constraint dictates when delegation pays off:
+
+- **Delegate when you do not expect to change code based on the output**: the final full-suite
+  verification, a confirmation re-run after fixes are in, reproducing a CI failure, or any long
+  full-suite / integration-test run. These are pure execute-and-report steps; running them
+  inline only floods the main context with minutes of build noise.
+- **Run inline while actively iterating** on a write → run → fix loop. Every failure needs the
+  main agent anyway, so a delegation round-trip per iteration adds latency without removing
+  work.
+
+The decision key is "will I act on the output": yes → inline, no → delegate.
+
+## Execution Hygiene
+
+- **Never run two `./gradlew` invocations in parallel from the same working tree.** They race
+  on the shared `build/` directory and corrupt each other's outputs; the typical symptom is
+  `java.nio.file.NoSuchFileException: build/classes/java/...` — it looks like a build breakage
+  but is purely self-inflicted. Run them sequentially, or combine them into a single invocation
+  (e.g. `./gradlew check -x <integration-test-task>`).
+- **Prefer targeted static-analysis tasks when the umbrella task is blocked.** `./gradlew check`
+  also compiles integration tests; an unrelated IT compilation error then masks the style
+  verdict for your change. In that situation run the concrete tasks instead:
+  `./gradlew checkstyleMain checkstyleTest pmdMain pmdTest spotbugsMain spotbugsTest`.
+- **Testcontainers-based ITs can fail at container start with Docker network exhaustion** —
+  the symptom is `all predefined address pools have been fully subnetted` or a container that
+  simply won't launch after many local runs. This is environmental, not a code failure. Fix:
+
+  ```bash
+  docker network prune -f --filter "label=org.testcontainers=true"
+  ```
+
+  Re-run the suite after pruning before treating the failure as real.
 
 ## Command Execution
 
@@ -46,8 +83,8 @@ the main agent.
 ## Verification Expectations
 
 - Run the full **Verification Sequence** (above) before claiming a change is complete.
-- If a task is delegated to a smaller/cheaper sub-agent, that sub-agent must only run, extract, and summarize.
-  The main agent remains responsible for code changes.
+- Choose between sub-agent delegation and inline runs per **Delegate or Run Inline** (above).
+  The main agent always remains responsible for code changes.
 
 ## Schema / Enum / DTO Changes Require Full-Suite Verification
 
@@ -58,7 +95,7 @@ Run the FULL unit suite AND the full integration suite before claiming the chang
 
 The mistake shape: you add a 6th field to a record. The compiler catches every constructor-call
 site (~29 of them), you fix the arity, and you run `./gradlew test --tests "*ChangedClassTest*"`
-— it passes. Meanwhile, an unrelated test uses `EnumSet.allOf(Metric.class)` as a Mockito stub
+— it passes. Meanwhile, an unrelated test uses `EnumSet.allOf(Channel.class)` as a Mockito stub
 matcher; the matcher's runtime cardinality silently changed under your enum addition; the test
 fails at runtime but you don't see it because you only ran scoped tests. CI catches it. Round-trip
 wasted.

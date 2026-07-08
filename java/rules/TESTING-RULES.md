@@ -6,52 +6,41 @@ Mandatory reading before writing or modifying any test class.
 
 - JUnit 5: `@Test`, `@ParameterizedTest`, `@BeforeEach`.
 - Mockito: `@ExtendWith(MockitoExtension.class)`, `@Mock`, `@InjectMocks`.
-- AssertJ: Preferred for all assertions.
-- TestContainers: For integration tests involving DB, Kafka, Vault, or other external infrastructure.
+- AssertJ: preferred for all assertions.
+- TestContainers: for integration tests involving DB, Kafka, Vault, or other external infrastructure.
 
 ## Unit vs. Integration Tests
 
-- Unit tests MUST NOT bootstrap the framework application context. Reserve framework-bootstrapping
-  test annotations for integration tests in the framework-specific IT source set. See the
-  framework-specific `TESTING.md` for which annotations apply.
-- Unit tests mirror the package structure of the class under test.
-- Integration tests are named with the `IT` suffix.
+- Unit tests MUST NOT bootstrap the framework application context. Framework-bootstrapping
+  annotations belong to integration tests in the framework-specific IT source set — see the
+  framework-specific `TESTING.md`.
+- Unit tests mirror the package structure of the class under test; integration tests carry the
+  `IT` suffix.
 - When changing DB code, SQL queries, REST client code, Kafka code, OpenSearch code, Redis code,
-  or similar infrastructure-facing integration code, integration tests MUST be added or updated.
-- Do NOT rely on unit tests alone for those changes. The integration behavior must be verified against
-  the actual framework wiring and infrastructure boundary.
+  or similar infrastructure-facing code, integration tests MUST be added or updated. Unit tests
+  alone are not sufficient for those changes.
 
 ### Mocking the infrastructure boundary — strict prohibition
 
 For an infrastructure-coupled class (repository with custom SQL, Kafka publisher/consumer,
-cache-backed service where TTL / eviction / atomicity is part of the behavior, REST client where
-serialization or headers matter), an integration test is **the** verification — not an additional
-layer on top of a mocked unit test. A mocked unit test for such a class is not a valid substitute
-for the IT, even when it passes.
+cache-backed service where TTL/eviction/atomicity is the behavior, REST client where
+serialization or headers matter), the integration test IS the verification. A mocked unit test
+is not a valid substitute even when it passes: the mock replaces exactly the part the behavior
+depends on, so wrong SQL still "works", wrong headers still "appear", and an "expired" cache
+entry never actually expires.
 
-The mock you reach for replaces exactly the part the behavior depends on. The mocked test then
-"passes" against semantics that no real component provides — wrong SQL still serialises, wrong
-headers still appear, an "expired" cache entry never actually expires. The IT catches all of these;
-the mocked unit test cannot.
-
-**MUST NOT** stand alone as the primary verification when the behavior depends on the boundary
-they represent:
+Mocks of the following MUST NOT stand alone as primary verification when the behavior depends
+on the boundary they represent:
 
 - `EntityManager`, `Session`, `JdbcTemplate`, `NamedParameterJdbcTemplate`, `JpaRepository` /
   Panache repository APIs.
-- `Emitter<T>` (Quarkus Reactive Messaging), `KafkaProducer`, `KafkaConsumer`, Spring
+- `Emitter<T>` (Quarkus Reactive Messaging), `KafkaProducer`/`KafkaConsumer`, Spring
   `KafkaTemplate`, `@KafkaListener` containers.
-- `io.quarkus.cache.Cache` / `CaffeineCache`, Spring `Cache` / `CacheManager`, `RedisClient`,
-  Redisson clients, when TTL / eviction / atomic claim is part of the behavior under test.
-- `RestClient` / `WebClient` / OpenFeign clients when transport details (headers, request body
+- `io.quarkus.cache.Cache` / `CaffeineCache`, Spring `Cache`/`CacheManager`, Redis clients —
+  when TTL / eviction / atomic claim is part of the behavior under test.
+- `RestClient` / `WebClient` / OpenFeign clients when transport details (headers, body
   serialization, retry policy) are part of the behavior under test.
 - `DataSource` / connection-pool primitives when transaction boundaries are part of the behavior.
-
-Mocked unit tests on infrastructure-coupled classes ARE acceptable, but only for **pure behavioral
-logic that is independent of the infrastructure semantics** — e.g. argument validation, branching
-on inputs, delegation to another collaborator, transformation of inputs before the boundary call.
-The moment a test asserts something the mock cannot replicate (TTL expiry, real SQL execution,
-real header serialization), the test belongs in the IT layer.
 
 ```java
 // WRONG — mocked EntityManager "test" passes against any SQL string, including broken SQL
@@ -129,26 +118,18 @@ class ThrottleServiceIT {
 }
 ```
 
-If a class is split such that the pure-logic helper lives separately from the infrastructure
-adapter (a `Service` that delegates to a `Repository`, or a `*Aggregator` separate from the
-`*Consumer`), the helper is a fine target for a mocked unit test, and the adapter is the target
-for the IT. That split is preferred over piling both responsibilities into one class and then
-arguing about which test layer to use.
+Mocked unit tests on infrastructure-coupled classes ARE acceptable for pure behavioral logic
+independent of the infrastructure semantics — argument validation, branching on inputs,
+delegation, input transformation. The moment a test asserts something the mock cannot replicate,
+it belongs in the IT layer. Preferred design: split the pure-logic helper from the
+infrastructure adapter; unit-test the helper, IT the adapter.
 
 ## Testing Configuration Objects
 
-Both Quarkus (`@ConfigMapping`) and Spring (`@ConfigurationProperties`) bind grouped configuration
-to typed interfaces or classes that often contain nested interfaces or records for sub-groups.
-
-**Prefer binding real configuration values over mocking the config object.** A test that binds
-real property values exercises the actual mapping, the actual nested structure, and the actual
-type coercion the framework will use in production. Excessive mocking of nested configuration
-objects hides binding mistakes that would have shown up in a real test profile.
-
-When you must mock the configuration object (e.g. a focused unit test where binding the full
-profile is overkill), annotate the mock with `@Mock(answer = Answers.RETURNS_DEEP_STUBS)` so
-nested accessors can be stubbed in a single `when(...)` chain without creating a separate mock
-for each sub-interface.
+Prefer binding real configuration values over mocking the config object (`@ConfigMapping` /
+`@ConfigurationProperties`) — a real binding exercises the actual mapping, nesting, and type
+coercion used in production. When a focused unit test justifies mocking the config object, use
+deep stubs so nested accessors stub in one chain:
 
 ```java
 // CORRECT
@@ -157,22 +138,21 @@ AppProperties properties;
 
 when(properties.s3().bucketName()).thenReturn("my-bucket");
 
-// WRONG - unnecessary intermediate mock for each nested interface
+// WRONG — unnecessary intermediate mock for each nested interface
 @Mock S3Settings s3;
 when(properties.s3()).thenReturn(s3);
 when(s3.bucketName()).thenReturn("my-bucket");
 ```
 
-Use `RETURNS_DEEP_STUBS` only for configuration/properties interfaces, not for service or
-repository mocks where deep stubbing would hide missing explicit stubs.
+Use `RETURNS_DEEP_STUBS` only for configuration interfaces — on service or repository mocks it
+hides missing explicit stubs.
 
-## DBRider and @Nested - Strict Prohibition
+## DBRider and @Nested — Strict Prohibition
 
-**NEVER use `@Nested` inner classes in DBRider-based integration tests.**
-
-DBRider interceptors do not reliably fire for methods inside `@Nested` classes, so dataset setup and
-teardown can be silently skipped, leading to corrupt test state. When grouping is needed, create a
-separate top-level IT class instead:
+**NEVER use `@Nested` inner classes in DBRider-based integration tests.** DBRider interceptors
+do not reliably fire for methods inside `@Nested` classes, so dataset setup/teardown can be
+silently skipped, corrupting test state. When grouping is needed, split into top-level IT
+classes instead:
 
 ```java
 // WRONG - DBRider annotations will not be applied inside @Nested
@@ -186,21 +166,17 @@ class OrderRepositoryFindByStatusIT { ... }
 class OrderRepositoryCountByMonthIT { ... }
 ```
 
-This rule applies to any test class that uses DBRider, regardless of whether the `@Nested` class
-has its own dataset annotations.
+This applies to any test class using DBRider, whether or not the `@Nested` class has its own
+dataset annotations.
 
 ## Test Organisation with @Nested
 
-Use `@Nested` inner classes to group related test cases when a test class covers multiple scenarios
-or contains many test methods. For tiny test classes, `@Nested` is optional.
+Outside DBRider tests, use `@Nested` classes to group scenarios in larger test classes (optional
+for tiny ones):
 
-### Naming
-
-- Test classes: `UserServiceTest`, `UserRepositoryIT` (suffix `Test` or `IT`).
-- `@Nested` classes: describe the method or condition - `GetCompanyById`, `WhenInputIsInvalid`, `EdgeCases`.
-- Test methods: `shouldDoSmthWhenSmth` - e.g. `shouldReturnCompanyWhenFound()`.
-
-### Canonical Structure
+- Test classes: `UserServiceTest`, `UserRepositoryIT`.
+- `@Nested` classes: the method or condition — `GetCompanyById`, `WhenInputIsInvalid`.
+- Test methods: `shouldDoSmthWhenSmth` — e.g. `shouldReturnCompanyWhenFound()`.
 
 ```java
 class CompanyServiceTest {
@@ -227,13 +203,9 @@ class CompanyServiceTest {
 
 ## Parameterized Tests
 
-Use `@ParameterizedTest` whenever the same behaviour needs to be verified across multiple input
-values. Do NOT write a separate `@Test` method per value.
-
-This is especially important for validation: a single parameterized test replaces a proliferation
-of near-identical methods like `shouldThrowWhenNameIsNull`, `shouldThrowWhenNameIsEmpty`, etc.
-
-Choose the most concise source annotation for the situation:
+Use `@ParameterizedTest` whenever the same behaviour is verified across multiple input values —
+never a separate `@Test` per value. This especially applies to validation, where one
+parameterized test replaces a pile of near-identical methods. Pick the most concise source:
 
 | Situation | Annotation |
 |---|---|
@@ -264,20 +236,15 @@ void shouldReturnCorrectCountForStatus(final String status, final int expected) 
 
 ## Coverage of New Branches
 
-Whenever you introduce a new branching construct — `try`/`catch`, `if`/`else`, ternary, switch arm,
-`whenComplete` lambda, defensive null check — add a test that exercises **each arm** in the same
-commit. Coverage is not a follow-up step.
+Every new branching construct — `try`/`catch`, `if`/`else`, ternary, switch arm, `whenComplete`
+lambda, defensive null check — gets a test for **each arm** in the same commit. Coverage is not
+a follow-up step; letting Sonar/JaCoCo flag it later forces a second review round and produces
+bolted-on coverage-only tests. The arms most often missed:
 
-The arms most often missed are:
-
-- The **defensive** `catch` block (the "this should never happen, but fail-open" branch).
-- The **success** arm of a `whenComplete` (`asyncEx == null`) when the test only checks the
-  failure path.
-- The **else** branch of an `if` that guards a rare condition.
-- The **null/empty** input branch of a method whose happy path is the test's focus.
-
-Letting a coverage tool (Sonar, JaCoCo) flag these later forces a second review round and tends
-to result in coverage-only tests bolted on after the fact. Add the test up front instead.
+- The defensive `catch` ("should never happen, fail open") branch.
+- The **success** arm of `whenComplete` (`asyncEx == null`) when only the failure path is tested.
+- The `else` of an `if` guarding a rare condition.
+- The null/empty input branch of a method whose happy path is the focus.
 
 ```java
 // WRONG — only the throw path is tested; the success path of whenComplete is never asserted
@@ -294,20 +261,20 @@ to result in coverage-only tests bolted on after the fact. Add the test up front
 
 ## Scope Test-Only Affordances Narrowly
 
-Methods, constructors, or accessors that exist **only** to enable testing — `resetForTest()`,
-`forTesting(...)`, exposing an internal counter, a setter for an otherwise-immutable field — should
-be scoped as narrowly as the call sites permit. The hierarchy:
+For members that exist only to enable testing (`resetForTest()`, exposed counters, setters on
+otherwise-immutable state), the hierarchy is:
 
-1. Don't add the affordance at all — restructure the test to use the real API surface or move the
-   test into the same package as the production class so the regular access modifier is enough.
+1. Don't add the affordance — restructure the test to use the real API, or move the test into
+   the production class's package so default visibility suffices.
 2. Package-private, with same-package tests calling it.
-3. Public, only when a deliberate API decision says the operational hook belongs on the surface.
+3. Public, only as a deliberate API decision that the hook belongs on the surface.
 
-Promoting a test-only method to `public` because a test in a different package needs it is almost
-always a sign that the cross-package test has fragile isolation; fix that test first, then keep
-the affordance package-private. A `public resetForTest()` invites production callers, silently
-widens the supported API surface, and signals to future maintainers that the method is a real
-operational hook.
+Promoting a test-only method to `public` because a test in another package wants it is almost
+always a sign that test has fragile isolation — fix the test. A `public resetForTest()` invites
+production callers and silently widens the API. If a different-package test genuinely needs the
+affordance: (a) make the test same-package, (b) use a `@VisibleForTesting`-equivalent annotation
+that lints other callers, or (c) accept public visibility AND document on the method why
+production code must not call it.
 
 ```java
 // WRONG — public so an IT in com.example.service can reach into the recorder package
@@ -326,26 +293,16 @@ public class StatusRecorder {
 }
 ```
 
-If a Kotlin / different-package test genuinely needs to call the affordance, the right escape
-hatches (in order of preference) are: (a) make the test class same-package, (b) introduce a
-narrow `@VisibleForTesting`-equivalent annotation that lints other callers, (c) accept the public
-visibility AND document on the method why production code must not call it. Going straight to
-"make it public" without that audit trail is the wrong default.
-
 ## Wall-clock Timing in Tests
 
-Do NOT rely on wall-clock delays in the single-digit-millisecond range to gate test behaviour.
-JIT compilation, GC pauses, container scheduling, and CI-runner contention routinely push two
-back-to-back Java method calls past 1 ms apart — a test that "two `publish()` calls happen within
-the 1 ms TTL" passes locally and fails on Jenkins.
-
-When a test needs deterministic cache / throttle / TTL state, control it **explicitly**:
+Do NOT gate test behaviour on wall-clock delays in the single-digit-millisecond range — JIT, GC,
+and CI-runner contention routinely push two back-to-back calls past 1 ms apart, so the test
+passes locally and fails on Jenkins. Control cache / throttle / TTL state explicitly instead:
 
 - Invalidate caches in `@BeforeEach` (e.g. `cache.invalidateAll().await().indefinitely()`).
-- Use the cache's `keySet()` / size to observe state directly rather than inferring it from a
-  side effect that depends on timing.
-- Keep configured TTLs at realistic production values; reset state between tests instead of
-  shrinking the TTL to a number that's racing the JVM.
+- Observe cache state directly (`keySet()`, size) rather than inferring it from timing.
+- Keep TTLs at realistic production values; reset state between tests instead of shrinking the
+  TTL to a number that races the JVM.
 
 ```java
 // WRONG — relies on PT0.001S TTL being longer than two consecutive Java calls
@@ -364,20 +321,16 @@ assertThat(messages).hasSize(1); // flaky on CI
 }
 ```
 
-If you must wait on an external system you cannot control (CI job, downstream service),
-use Awaitility's `await()` with conservative `pollDelay` / `atMost` budgets, not raw
-`Thread.sleep` of tens of milliseconds.
+For waits on systems you cannot control, use Awaitility's `await()` with conservative budgets,
+never raw `Thread.sleep`.
 
 ## Stubs vs. Verification
 
-`when(...)` stubs configure behaviour — they are NOT assertions.
-Always use `any()` (or `any(Type.class)`) matchers in `when(...)` stubs.
-Never use `eq()` or raw argument values inside `when(...)` — they create the
-illusion of verification while actually asserting nothing: if the code never
-calls the method, or calls it with wrong arguments but the stub condition
-simply doesn't match, the test still passes silently.
-
-To assert that a method was called with specific arguments, use `verify(...)`.
+`when(...)` stubs configure behaviour — they are NOT assertions. Always use `any()` (or
+`any(Type.class)`) matchers in `when(...)`; never `eq()` or raw values. Specific arguments in a
+stub create the illusion of verification while asserting nothing: if the code never calls the
+method, or calls it with different arguments, the stub simply doesn't match and the test still
+passes. Assert arguments with `verify(...)`.
 
 ```java
 // WRONG — eq() in when() is not an assertion
@@ -392,10 +345,10 @@ verify(service).findByCode(offerCode, prefix, expectedAuth);
 ## Closed-Set Matchers in Stubs — Avoid `EnumSet.allOf` / `.values()` / Wildcards
 
 Do NOT use `EnumSet.allOf(MyEnum.class)`, `Arrays.asList(MyEnum.values())`, or any other
-"give me everything in the universe" expression as a Mockito match argument in `when(...)` /
-`verify(...)`. Such matchers silently change meaning the moment the underlying enum (or other
-closed set) gains a new value — the stub stops matching what the production code now sends, and
-the test fails or, worse, silently returns `null` from an unmatched stub and breaks elsewhere.
+"everything in the universe" expression as a match argument in `when(...)` / `verify(...)`. The
+matcher's meaning silently changes when the enum gains a value: the stub stops matching what
+production now sends, returns `null`, and the test breaks at runtime — or worse, elsewhere. Pin
+the values the test cares about, by name:
 
 ```java
 // WRONG — ALL_CHANNELS = EnumSet.allOf(Channel.class) is 5 today, 6 tomorrow.
@@ -415,46 +368,34 @@ when(service.dispatch(any(), any(), any(), any(), anyBoolean(), any(),
   .thenReturn(response);
 ```
 
-When you extend an enum / sealed type / closed value set, also sweep the test sources for every
-`allOf` / `.values()` / `Arrays.asList(X.values())` / "all of them" wildcard reference and convert
-each to an explicit enumeration of the values the test actually depends on. The grep:
-
-```
-grep -rn "EnumSet.allOf\|.values()\|all.*Class" src/test src/integrationTest
-```
-
-…then triage each hit. Tests that genuinely need "all current values" (e.g. a contract test that
-the public API surface includes every enum value) are the rare exception; everything else should
-be explicit.
+When you extend an enum / sealed type / closed set, grep the test sources
+(`grep -rn "EnumSet.allOf\|.values()" src/test src/integrationTest`) and convert each wildcard
+hit to an explicit enumeration. Tests that genuinely need "all current values" (e.g. a contract
+test over the full API surface) are the rare exception.
 
 ## Verify with Real Argument Values
 
-In `verify(...)` calls, always pass the exact expected argument values. Matchers like `any()` or
-`anyString()` are fine in `when(...)` stubs but MUST NOT appear in `verify(...)` unless the exact
-value is genuinely unknowable at test time, in which case add a comment explaining why.
+In `verify(...)`, always pass the exact expected values. `any()`-style matchers MUST NOT appear
+in `verify(...)` unless the value is genuinely unknowable at test time — then add a comment
+saying why.
 
 ```java
 // CORRECT
 verify(orderService).createOrder(orderId, customerId);
 
-// WRONG - masks incorrect arguments
+// WRONG — masks incorrect arguments
 verify(orderService).createOrder(any(), any());
 
-// Justified exception - value is generated internally
-verify(eventPublisher).publish(any(OrderCreatedEvent.class)); // UUID generated at call site
+// Justified exception — value generated at the call site
+verify(eventPublisher).publish(any(OrderCreatedEvent.class)); // UUID generated internally
 ```
 
 ## Asserting Absence of Interactions
 
-Prefer `verifyNoInteractions(mock)` or `verifyNoMoreInteractions(mock)` over
-`verify(mock, never()).method(...)`.
-
-`verify(mock, never()).method(arg)` only guards against one specific call signature — if production
-code later calls the same method with different arguments, the assertion passes silently.
-`verifyNoInteractions` / `verifyNoMoreInteractions` catch any call to any method on the mock.
-
-Use `never()` only when you need to assert that one specific method was not called while other
-methods on the same mock legitimately were.
+Prefer `verifyNoInteractions(mock)` / `verifyNoMoreInteractions(mock)` over
+`verify(mock, never()).method(...)` — `never()` guards one specific signature and passes
+silently if production calls the same method with different arguments. Use `never()` only when
+one specific method must not be called while other methods on the same mock legitimately are:
 
 ```java
 // WRONG - passes silently if called with different arguments
@@ -470,9 +411,10 @@ verify(cache, never()).evictCacheEntry(any(), any());
 
 ## ArgumentCaptor
 
-Use `ArgumentCaptor` only when the argument cannot be verified by passing a value directly to
-`verify(...)`. If you can construct or reference the expected value, verify it directly - a captor
-in that situation is noise.
+Use `ArgumentCaptor` only when the argument cannot be verified by passing the expected value to
+`verify(...)` directly — typically an object constructed internally by the class under test. A
+captor for a value the test can construct is noise. When a captor is genuinely needed, declare
+it as an `@Captor` field, not inline via `ArgumentCaptor.forClass(...)`.
 
 ```java
 // WRONG - captor is unnecessary, the value is known
@@ -483,10 +425,6 @@ assertThat(monthCaptor.getValue()).isEqualTo(yearMonth);
 // CORRECT - verify directly
 verify(repository).countByMonth(yearMonth);
 ```
-
-When a captor is genuinely needed (e.g. the argument is an object constructed internally by the
-class under test), declare it as a field annotated with `@Captor`. Do NOT create it inline with
-`ArgumentCaptor.forClass(...)`.
 
 ```java
 // CORRECT - OrderRequest is built internally, cannot be reproduced from the test

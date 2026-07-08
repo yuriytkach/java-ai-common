@@ -3,6 +3,20 @@
 Mandatory reading before creating any git commit, pull request title, or pull
 request body.
 
+## Push and Branching Policy
+
+- **Feature/personal branches** (any branch that is NOT `main`, `master`, `stage`, or
+  `develop`): push without asking, including `git push --force-with-lease` after a rebase.
+  Never use bare `--force`.
+- **Shared base branches** (`main`, `master`, `stage`, `develop`): ask for confirmation before
+  pushing — unless the user's message explicitly says to push (e.g. "push to master"), in
+  which case proceed directly.
+- **Keep base-branch history linear.** Integrate finished branches by rebasing onto the base
+  branch and fast-forwarding — no merge commits. Before any history rewrite (rebase, squash),
+  create a safety backup branch.
+- **Stacked work**: base a new branch on the previous branch only when it needs the previous
+  branch's changes; otherwise branch from the default branch.
+
 ## Commit subject
 
 Format: `<type>: <Capitalized imperative subject>`
