@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.java"
+---
+
 # Design Principles
 
 Mandatory reading before writing, editing, or refactoring any Java code.

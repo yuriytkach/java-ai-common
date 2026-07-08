@@ -1,0 +1,1 @@
+../../java/rules/TESTING-RULES.md

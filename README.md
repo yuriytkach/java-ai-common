@@ -8,12 +8,30 @@ This repository is intended to be mounted into consumer repositories under `.age
 
 - `java/` — shared Java code-style, design, and testing rules
 - `gradle/` — shared Gradle verification guidance
-- `quarkus/` — Quarkus-specific `AGENTS.md` and framework/testing rules
-- `spring-boot/` — Spring Boot-specific `AGENTS.md` and framework/testing rules
+- `quarkus/` — Quarkus-specific `AGENTS.md`, framework/testing rules, and `claude-rules/`
+- `spring-boot/` — Spring Boot-specific `AGENTS.md`, framework/testing rules, and `claude-rules/`
 
 Consumer repositories are expected to symlink both their root `AGENTS.md` and `CLAUDE.md` to the
 appropriate framework file, for example `.agent/shared/quarkus/AGENTS.md` or
 `.agent/shared/spring-boot/AGENTS.md`.
+
+### How the rules load
+
+Two complementary mechanisms deliver the same rule files:
+
+1. **Prose gates** in the framework `AGENTS.md` tell any coding agent (Claude Code, OpenCode,
+   Codex, …) to read the matching rule file before the relevant phase of work. This is the
+   portable mechanism and the fallback for every tool.
+2. **Path-scoped Claude Code rules**: each framework directory has a `claude-rules/` folder of
+   symlinks to the path-triggered rule files, which carry `paths:` frontmatter. A consumer
+   repository symlinks `.claude/rules/shared` to that folder, and Claude Code then loads each
+   rule automatically whenever it reads a file matching the rule's globs (e.g. `**/*Test.java`
+   → the testing rules) — deterministic loading that does not rely on the model following a
+   prose instruction.
+
+`LOGGING.md`, `VERIFICATION.md`, and `COMMIT-AND-PR.md` are deliberately absent from
+`claude-rules/`: their triggers are actions (adding a log statement, running verification,
+committing), not file paths, so they load via the prose gates.
 
 ## AI Agent Setup
 
@@ -52,6 +70,9 @@ my-service/
       gradle/
       quarkus/             # or spring-boot/
     rules/                 # optional project-specific rule overrides
+  .claude/
+    rules/
+      shared               # symlink to .agent/shared/<framework>/claude-rules
   AGENTS.md                # symlink to .agent/shared/<framework>/AGENTS.md
   CLAUDE.md                # symlink to the same .agent/shared/<framework>/AGENTS.md
 ```
@@ -63,6 +84,8 @@ Notes:
   same name as shared rule files take precedence over the shared ones).
 - `AGENTS.md` and `CLAUDE.md` in the project root are usually symlinks to the chosen framework's
   shared `AGENTS.md`.
+- `.claude/rules/shared` is a symlink to the framework's `claude-rules/` folder; it lets Claude
+  Code auto-load the path-scoped rules. Other agents ignore it and rely on the `AGENTS.md` gates.
 
 ### Adding as a submodule
 
@@ -80,6 +103,9 @@ cd ../..
 
 ln -s .agent/shared/quarkus/AGENTS.md AGENTS.md
 ln -s .agent/shared/quarkus/AGENTS.md CLAUDE.md
+
+mkdir -p .claude/rules
+ln -s ../../.agent/shared/quarkus/claude-rules .claude/rules/shared
 ```
 
 #### Spring Boot project
@@ -92,6 +118,9 @@ cd ../..
 
 ln -s .agent/shared/spring-boot/AGENTS.md AGENTS.md
 ln -s .agent/shared/spring-boot/AGENTS.md CLAUDE.md
+
+mkdir -p .claude/rules
+ln -s ../../.agent/shared/spring-boot/claude-rules .claude/rules/shared
 ```
 
 ### After cloning or repairing an existing setup

@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.java"
+---
+
 # Code Style Rules
 
 Mandatory reading before writing, editing, or refactoring any Java code.

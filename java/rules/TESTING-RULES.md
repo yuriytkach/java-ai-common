@@ -1,3 +1,12 @@
+---
+paths:
+  - "**/src/test/**"
+  - "**/src/integrationTest/**"
+  - "**/src/quarkusIntTest/**"
+  - "**/*Test.java"
+  - "**/*IT.java"
+---
+
 # Testing Rules
 
 Mandatory reading before writing or modifying any test class.
